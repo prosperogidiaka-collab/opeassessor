@@ -1,0 +1,5 @@
+{
+  "name": "OPE ASSESSOR - Teacher & Student Portal",
+  "description": "A lightweight, beautiful assessment platform for teachers to create timed exams and students to take them via unique IDs. Includes result analysis powered by Gemini.",
+  "requestFramePermissions": []
+}

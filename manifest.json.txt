@@ -1,0 +1,16 @@
+
+{
+  "short_name": "OPE Assessor",
+  "name": "OPE ASSESSOR - Assessment Portal",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3407/3407024.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#fecdd3",
+  "background_color": "#fef9f8"
+}

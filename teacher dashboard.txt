@@ -1,0 +1,228 @@
+
+import React, { useState, useEffect } from 'react';
+import { Card, Button } from './Layout';
+import { storageService } from '../services/storageService';
+import { Quiz, Question, Submission } from '../types';
+
+export const TeacherDashboard: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'create' | 'results' | 'my-quizzes'>('create');
+  const [quizTitle, setQuizTitle] = useState('');
+  const [duration, setDuration] = useState(30);
+  const [maxGrade, setMaxGrade] = useState(100);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [manualCsv, setManualCsv] = useState('');
+  const [generatedId, setGeneratedId] = useState<string | null>(null);
+  
+  const [myQuizzes, setMyQuizzes] = useState<Quiz[]>([]);
+  const [trackQuizId, setTrackQuizId] = useState('');
+  const [filteredSubmissions, setFilteredSubmissions] = useState<Submission[]>([]);
+  const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
+
+  useEffect(() => {
+    setMyQuizzes(storageService.getQuizzes().sort((a, b) => b.createdAt - a.createdAt));
+  }, [activeTab]);
+
+  const parseCsv = (csv: string): Question[] => {
+    const lines = csv.trim().split('\n');
+    const questions: Question[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      const parts = lines[i].split(',').map(s => s.trim());
+      if (parts.length >= 6) {
+        questions.push({
+          id: Math.random().toString(36).substr(2, 9),
+          question: parts[0],
+          options: [parts[1], parts[2], parts[3], parts[4]],
+          answer: parts[5],
+          topic: parts[6] || 'General'
+        });
+      }
+    }
+    return questions;
+  };
+
+  const createQuiz = () => {
+    if (!quizTitle || !manualCsv) return alert('Please provide a title and questions.');
+    const questions = parseCsv(manualCsv);
+    if (questions.length === 0) return alert('No valid questions found in CSV. Check your format.');
+
+    const newQuiz: Quiz = {
+      id: Math.floor(100000 + Math.random() * 900000).toString(),
+      title: quizTitle,
+      durationMinutes: duration,
+      maxScore: maxGrade,
+      questions,
+      createdAt: Date.now(),
+      startWindow: startDate ? new Date(startDate).getTime() : undefined,
+      endWindow: endDate ? new Date(endDate).getTime() : undefined
+    };
+
+    storageService.saveQuiz(newQuiz);
+    setGeneratedId(newQuiz.id);
+    alert(`Quiz Created Successfully! ID: ${newQuiz.id}`);
+  };
+
+  const handleSearchQuiz = () => {
+    if (!trackQuizId) return alert('Please enter a Quiz ID to track.');
+    const subs = storageService.getSubmissionsByQuizId(trackQuizId);
+    setFilteredSubmissions(subs);
+    setSelectedSubmission(null);
+    if (subs.length === 0) alert('No submissions found for this Quiz ID.');
+  };
+
+  const copyShareLink = (quiz: Quiz) => {
+    const data = storageService.encodeQuizForUrl(quiz);
+    const url = `${window.location.origin}${window.location.pathname}?quizData=${data}`;
+    navigator.clipboard.writeText(url).then(() => alert("Student Share Link copied to clipboard!"));
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex flex-wrap justify-center gap-3 mb-8">
+        <Button variant={activeTab === 'create' ? 'primary' : 'secondary'} onClick={() => setActiveTab('create')}>New Exam</Button>
+        <Button variant={activeTab === 'my-quizzes' ? 'primary' : 'secondary'} onClick={() => setActiveTab('my-quizzes')}>My Quizzes</Button>
+        <Button variant={activeTab === 'results' ? 'primary' : 'secondary'} onClick={() => setActiveTab('results')}>Results Tracker</Button>
+      </div>
+
+      {activeTab === 'create' && (
+        <Card className="bg-rose-50/30 border-rose-100">
+          <h2 className="text-2xl font-black mb-6 text-rose-800">Create New Assessment</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-rose-700 uppercase">Quiz Title</label>
+              <input value={quizTitle} onChange={e => setQuizTitle(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-rose-200" placeholder="e.g. Physics Final" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-rose-700 uppercase">Duration (Minutes)</label>
+              <input type="number" value={duration} onChange={e => setDuration(Number(e.target.value))} className="w-full px-4 py-3 rounded-xl border border-rose-200" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-rose-700 uppercase">Maximum Grade (Scale)</label>
+              <input type="number" value={maxGrade} onChange={e => setMaxGrade(Number(e.target.value))} className="w-full px-4 py-3 rounded-xl border border-rose-200" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-rose-700 uppercase">Start Window (Local Time)</label>
+              <input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-rose-200" />
+            </div>
+            <div className="space-y-1 md:col-span-2">
+              <label className="text-xs font-bold text-rose-700 uppercase">End Window (Local Time)</label>
+              <input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-rose-200" />
+            </div>
+          </div>
+          <div className="space-y-1 mb-4">
+            <label className="text-xs font-bold text-rose-700 uppercase">Questions (CSV Format)</label>
+            <textarea value={manualCsv} onChange={e => setManualCsv(e.target.value)} className="w-full h-40 px-4 py-3 rounded-xl border border-rose-200 font-mono text-sm" placeholder="question,option1,option2,option3,option4,answer,topic" />
+          </div>
+          <Button onClick={createQuiz} className="w-full py-4 text-lg">Generate Exam ID 🔥</Button>
+          {generatedId && (
+            <div className="mt-6 p-6 bg-emerald-50 rounded-2xl border-2 border-emerald-200 text-center animate-in zoom-in duration-300">
+              <p className="text-sm font-bold text-emerald-700 mb-1">YOUR EXAM ID</p>
+              <p className="text-5xl font-black text-emerald-900 mb-4">{generatedId}</p>
+              <p className="text-xs text-emerald-600 mb-4">Share this ID or the link below with your students.</p>
+              <Button variant="accent" onClick={() => copyShareLink(storageService.getQuizById(generatedId!)!)} className="w-full">Copy Shareable Link 🔗</Button>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {activeTab === 'my-quizzes' && (
+        <div className="space-y-4">
+          <h2 className="text-2xl font-black text-slate-800">My Recent Assessments</h2>
+          {myQuizzes.length === 0 ? (
+            <Card className="text-center py-12">
+              <p className="text-slate-400">No quizzes created on this device yet.</p>
+            </Card>
+          ) : (
+            myQuizzes.map(q => (
+              <Card key={q.id} className="flex flex-col md:flex-row justify-between items-center gap-4 hover:border-rose-200 transition-colors">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-800">{q.title}</h3>
+                  <p className="text-sm text-slate-500 font-medium">ID: <span className="text-rose-500 font-bold">{q.id}</span> • {q.questions.length} Questions</p>
+                  {q.startWindow && <p className="text-xs text-slate-400">Window: {new Date(q.startWindow).toLocaleString()} - {q.endWindow ? new Date(q.endWindow).toLocaleString() : 'No end'}</p>}
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="secondary" onClick={() => copyShareLink(q)}>Copy Link</Button>
+                  <Button variant="accent" onClick={() => { setTrackQuizId(q.id); setActiveTab('results'); handleSearchQuiz(); }}>View Results</Button>
+                </div>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+
+      {activeTab === 'results' && (
+        <Card className="bg-sky-50/30 border-sky-100">
+          <h2 className="text-2xl font-black text-sky-800 mb-6">Results Tracker</h2>
+          <div className="flex gap-2 mb-8">
+            <input value={trackQuizId} onChange={e => setTrackQuizId(e.target.value)} className="flex-1 px-4 py-3 rounded-xl border border-sky-200" placeholder="Enter Quiz ID (e.g. 123456)" />
+            <Button onClick={handleSearchQuiz} variant="accent">Track</Button>
+          </div>
+
+          {filteredSubmissions.length > 0 && (
+            <div className="space-y-6">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left bg-white rounded-2xl overflow-hidden shadow-sm">
+                  <thead>
+                    <tr className="bg-sky-100 text-sky-800 text-xs font-black uppercase">
+                      <th className="px-4 py-3">Student</th>
+                      <th className="px-4 py-3">Score</th>
+                      <th className="px-4 py-3">Grade</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-sky-50">
+                    {filteredSubmissions.map(s => (
+                      <tr key={s.id} className="text-sm hover:bg-sky-50/50">
+                        <td className="px-4 py-3">
+                          <p className="font-bold text-slate-800">{s.studentName}</p>
+                          <p className="text-xs text-slate-500">{s.studentEmail}</p>
+                        </td>
+                        <td className="px-4 py-3">{s.score}/{s.totalPossible}</td>
+                        <td className="px-4 py-3 font-bold text-emerald-600">{s.finalGrade.toFixed(1)}</td>
+                        <td className="px-4 py-3">
+                          {s.autoSubmitted ? <span className="text-rose-500 font-bold text-xs uppercase">Auto-Sub</span> : <span className="text-emerald-500 font-bold text-xs uppercase">Normal</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button onClick={() => setSelectedSubmission(s)} className="text-sky-600 font-bold hover:underline">Details</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {selectedSubmission && (
+                <div className="mt-8 p-6 bg-white rounded-2xl border border-sky-100 shadow-md animate-in slide-in-from-bottom-4 duration-300">
+                  <div className="flex justify-between items-start mb-6">
+                    <div>
+                      <h3 className="text-2xl font-black text-slate-800">{selectedSubmission.studentName}</h3>
+                      <p className="text-slate-500">{selectedSubmission.studentEmail}</p>
+                    </div>
+                    <Button variant="secondary" onClick={() => setSelectedSubmission(null)}>Close</Button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <h4 className="font-black text-slate-400 uppercase text-xs tracking-widest border-b pb-2">Question Breakdown</h4>
+                    {storageService.getQuizById(selectedSubmission.quizId)?.questions.map((q, idx) => {
+                      const isCorrect = selectedSubmission.answers[q.id] === q.answer;
+                      return (
+                        <div key={q.id} className={`p-4 rounded-xl border ${isCorrect ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
+                          <p className="text-sm font-bold mb-1">Q{idx+1}: {q.question}</p>
+                          <div className="flex justify-between text-xs">
+                            <p>Student: <span className={isCorrect ? 'text-emerald-700 font-bold' : 'text-red-700 font-bold'}>{selectedSubmission.answers[q.id] || "No Answer"}</span></p>
+                            {!isCorrect && <p>Correct: <span className="text-emerald-700 font-bold">{q.answer}</span></p>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};

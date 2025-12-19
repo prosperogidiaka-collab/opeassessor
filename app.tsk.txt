@@ -1,0 +1,107 @@
+
+import React, { useState, useEffect } from 'react';
+import { UserView, Quiz, Submission } from './types';
+import { TeacherDashboard } from './components/TeacherDashboard';
+import { StudentJoin } from './components/StudentJoin';
+import { QuizInterface } from './components/QuizInterface';
+import { Card, Button } from './components/Layout';
+import { storageService } from './services/storageService';
+
+const App: React.FC = () => {
+  const [view, setView] = useState<UserView>(UserView.LANDING);
+  const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
+  const [activeStudent, setActiveStudent] = useState({ name: '', email: '' });
+  const [submissionResult, setSubmissionResult] = useState<Submission | null>(null);
+  const [prefilledQuizId, setPrefilledQuizId] = useState<string>('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const quizData = params.get('quizData');
+    if (quizData) {
+      const importedQuiz = storageService.decodeQuizFromUrl(quizData);
+      if (importedQuiz) {
+        storageService.saveQuiz(importedQuiz);
+        setPrefilledQuizId(importedQuiz.id);
+        setView(UserView.STUDENT_JOIN);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
+
+  const startQuiz = (quiz: Quiz, name: string, email: string) => {
+    setActiveQuiz(quiz);
+    setActiveStudent({ name, email });
+    setView(UserView.QUIZ_TAKING);
+  };
+
+  const finishQuiz = (submission: Submission) => {
+    setSubmissionResult(submission);
+    setView(UserView.QUIZ_RESULT);
+  };
+
+  return (
+    <div className="min-h-screen pb-20">
+      <nav className="p-6 flex justify-between items-center max-w-6xl mx-auto">
+        <div onClick={() => setView(UserView.LANDING)} className="text-3xl font-black text-rose-500 cursor-pointer tracking-tight">
+          OPE<span className="text-sky-500 ml-1">ASSESSOR</span> 🎨
+        </div>
+        {view !== UserView.LANDING && view !== UserView.QUIZ_TAKING && (
+          <Button variant="secondary" onClick={() => setView(UserView.LANDING)}>Home</Button>
+        )}
+      </nav>
+
+      <main className="px-6">
+        {view === UserView.LANDING && (
+          <div className="max-w-4xl mx-auto text-center mt-12 md:mt-24 space-y-12">
+            <h1 className="text-5xl md:text-7xl font-black text-slate-800 leading-tight">Modern & Secure Assessments.</h1>
+            <p className="text-xl text-slate-500 max-w-2xl mx-auto">Create, share, and track exams with zero login requirements and built-in anti-cheating protection.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <Card className="cursor-pointer hover:border-rose-200 transition-all group" onClick={() => setView(UserView.TEACHER_DASHBOARD)}>
+                <div className="text-4xl mb-4 group-hover:scale-110 transition-transform">👩‍🏫</div>
+                <h2 className="text-2xl font-bold mb-2">Teacher Portal</h2>
+                <p className="text-sm text-slate-500 mb-6">Create exams, set timing, and track student results.</p>
+                <Button className="w-full">Enter Portal</Button>
+              </Card>
+              <Card className="cursor-pointer hover:border-sky-200 transition-all group" onClick={() => setView(UserView.STUDENT_JOIN)}>
+                <div className="text-4xl mb-4 group-hover:scale-110 transition-transform">✍️</div>
+                <h2 className="text-2xl font-bold mb-2">Student Portal</h2>
+                <p className="text-sm text-slate-500 mb-6">Join an exam using a 6-digit ID or a shared link.</p>
+                <Button variant="secondary" className="w-full">Join Exam</Button>
+              </Card>
+            </div>
+          </div>
+        )}
+
+        {view === UserView.TEACHER_DASHBOARD && <TeacherDashboard />}
+        {view === UserView.STUDENT_JOIN && <StudentJoin onStartQuiz={startQuiz} initialQuizId={prefilledQuizId} />}
+        {view === UserView.QUIZ_TAKING && activeQuiz && (
+          <QuizInterface 
+            quiz={activeQuiz} 
+            studentName={activeStudent.name} 
+            studentEmail={activeStudent.email}
+            onFinish={finishQuiz} 
+          />
+        )}
+
+        {view === UserView.QUIZ_RESULT && submissionResult && (
+          <div className="max-w-md mx-auto text-center space-y-8 mt-12 animate-in fade-in zoom-in duration-500">
+            <h2 className="text-4xl font-black text-slate-800">Exam Complete</h2>
+            <Card className="bg-emerald-50 border-emerald-100 py-10">
+              <p className="text-sm font-bold text-emerald-600 uppercase tracking-widest mb-2">Final Grade</p>
+              <div className="text-7xl font-black text-emerald-700 mb-4">{submissionResult.finalGrade.toFixed(1)}</div>
+              <div className="flex justify-center gap-4 text-emerald-800/60 font-medium">
+                <span>Score: {submissionResult.score}/{submissionResult.totalPossible}</span>
+                <span>•</span>
+                <span>{((submissionResult.score / submissionResult.totalPossible) * 100).toFixed(0)}%</span>
+              </div>
+            </Card>
+            <p className="text-slate-500 text-sm">Your results have been saved. Your teacher can view them using your email: <strong>{submissionResult.studentEmail}</strong></p>
+            <Button onClick={() => setView(UserView.LANDING)} className="w-full">Back to Home</Button>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
+
+export default App;
